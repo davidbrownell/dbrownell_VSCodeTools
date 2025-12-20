@@ -1,4 +1,5 @@
-# noqa: D100
+"""Run cog on VSCode configuration files."""
+
 import importlib
 import inspect
 import io
