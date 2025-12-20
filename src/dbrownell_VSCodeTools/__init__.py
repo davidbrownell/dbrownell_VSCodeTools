@@ -1,5 +1,3 @@
-# noqa: D104
-
 from importlib.metadata import version
 
 
