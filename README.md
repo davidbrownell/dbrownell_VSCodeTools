@@ -22,10 +22,16 @@
 - [License](#license)
 
 ## Overview
-TODO: Complete this section
+This package contains various tools that are helpful when working with [VSCode](https://code.visualstudio.com/).
 
 ### How to use `dbrownell_VSCodeTools`
-TODO: Complete this section
+
+#### VSCodeCogger
+A tool that runs [cog](https://cog.readthedocs.io/en/latest/) using plugins found in ./src/dbrownell_VSCodeTools/VSCodeCogger/CogTools.
+
+For example, to automatically update VSCode's `launch.json` file with configurations for test files found in a repository, run:
+
+`uv run vscodecogger <repository directory>`
 
 <!-- Content below this delimiter will be copied to the generated README.md file. DO NOT REMOVE THIS COMMENT, as it will cause regeneration to fail. -->
 
