@@ -39,8 +39,112 @@ app = typer.Typer(
 
 
 # ----------------------------------------------------------------------
-@app.command("UpdateLaunchFile", no_args_is_help=True)
-def UpdateLaunchFile(
+def _GenerateCogToolsDir() -> Path:
+    this_dir = Path(__file__).parent
+
+    cog_tools_dir = this_dir / "CogTools"
+    assert cog_tools_dir.is_dir(), cog_tools_dir
+
+    return cog_tools_dir
+
+
+_cog_tools_dir = _GenerateCogToolsDir()
+
+
+# ----------------------------------------------------------------------
+def _CreateHelp() -> str:
+    # Get the plugin content
+    plugin_content_lines: list[list[str]] = []
+
+    parent_display_dir = Path(__file__).parent.parent
+
+    os.environ["__extracting_documentation__"] = "1"  # noqa: SIM112
+    with ExitStack(lambda: os.environ.pop("__extracting_documentation__")):
+        for plugin in _cog_tools_dir.iterdir():
+            if not plugin.is_file():
+                continue
+
+            if plugin.name == "__init__.py":
+                continue
+
+            sys.path.insert(0, str(plugin.parent))
+            with ExitStack(lambda: sys.path.pop(0)):
+                mod = importlib.import_module(plugin.stem)
+                assert mod is not None
+
+                plugin_content_lines.append(
+                    [
+                        plugin.stem,
+                        inspect.getdoc(mod) or "",
+                        str(plugin.relative_to(parent_display_dir)),
+                    ],
+                )
+
+                del sys.modules[plugin.stem]
+
+    plugin_content = TextwrapEx.Indent(
+        TextwrapEx.CreateTable(
+            [
+                "CogTools Name",
+                "Description",
+                "Source Code",
+            ],
+            plugin_content_lines,
+        ),
+        4,
+    )
+
+    # Return the help string
+    return textwrap.dedent(
+        """\
+        Update launch.json using cog.
+
+        Edit 'launch.json' with the code below. '<CogTools Name Here>' is the name of the
+        python file within the `./CogTools` subdirectory that contains the functionality that
+        you would like to use.
+
+        launch.json:
+
+        {{
+            ...
+            "configurations": [
+                ...
+
+                // \\[\\[\\[cog import <CogTools Name Here>]]]
+                // \\[\\[\\[end]]]
+
+                ...
+            ]
+        }}
+
+        '<CogTools Name Here>' can be one of:
+
+        {}
+
+        Example:
+            To populate tests based on functionality in `./CogTools/PopulateTests.py`:
+
+            launch.json:
+
+            {{
+                ...
+                "configurations": [
+                    ...
+
+                    // \\[\\[\\[cog import PopulateTests]]]
+                    // \\[\\[\\[end]]]
+
+                    ...
+                ]
+            }}
+
+        """,
+    ).format(plugin_content)
+
+
+# ----------------------------------------------------------------------
+@app.command("UpdateLaunchFile", help=_CreateHelp(), no_args_is_help=True)
+def UpdateLaunchFile(  # noqa: D103
     input_file_or_directory: Annotated[
         Path,
         typer.Argument(
@@ -64,32 +168,6 @@ def UpdateLaunchFile(
         typer.Option("--debug", help="Write debug information to the terminal."),
     ] = False,
 ) -> None:
-    r"""Update launch.json using cog.
-
-    Edit 'launch.json' with the code below. `<CogTools name here>` is the name of the
-    python file within the `./CogTools` subdirectory that contains the functionality that
-    you would like to use.
-
-    Example:
-        To populate tests based on functionality in `./CogTools/PopulateTests.py`,
-        replace '<CogTools name here>' with 'PopulateTests'.
-
-    `launch.json`:
-
-    {
-        ...
-        "configurations": [
-            ...
-
-            // \[\[\[cog import <CogTools name here>]]]
-            // \[\[\[end]]]
-
-            ...
-        ]
-    }
-
-    """
-
     with DoneManager.CreateCommandLine(
         flags=DoneManagerFlags.Create(verbose=verbose, debug=debug),
     ) as dm:
@@ -103,14 +181,9 @@ def UpdateLaunchFile(
 
         tasks = [ExecuteTasks.TaskData(str(filename), filename) for filename in filenames]
 
-        this_dir = Path(__file__).parent
-
-        cog_tools_dir = this_dir / "CogTools"
-        assert cog_tools_dir.is_dir(), cog_tools_dir
-
         # ----------------------------------------------------------------------
         def Transform(context: Path, status: ExecuteTasks.Status) -> None:  # noqa: ARG001
-            _CogFile(cog_tools_dir, context, is_headless=dm.capabilities.is_headless)
+            _CogFile(context)
 
         # ----------------------------------------------------------------------
 
@@ -164,12 +237,7 @@ def _GetFiles(
 
 
 # ----------------------------------------------------------------------
-def _CogFile(
-    cog_tools_dir: Path,
-    filename: Path,
-    *,
-    is_headless: bool,
-) -> None:
+def _CogFile(filename: Path) -> None:
     # Invoke cog
     sink = io.StringIO()
 
@@ -185,7 +253,7 @@ def _CogFile(
             "-r",  # Replace
             "--verbosity=0",
             "-I",
-            str(cog_tools_dir),
+            str(_cog_tools_dir),
             str(filename),
         ],
     )
@@ -199,73 +267,6 @@ def _CogFile(
             result = 1
 
     if result != 0:
-        if "no cog code found in" in output:
-            # Extract documentation from the plugins
-            plugin_content: list[list[str]] = []
-
-            os.environ["__extracting_documentation__"] = "1"  # noqa: SIM112
-            with ExitStack(lambda: os.environ.pop("__extracting_documentation__")):
-                for plugin in cog_tools_dir.iterdir():
-                    if not plugin.is_file():
-                        continue
-
-                    if plugin.name == "__init__.py":
-                        continue
-
-                    sys.path.insert(0, str(plugin.parent))
-                    with ExitStack(lambda: sys.path.pop(0)):
-                        mod = importlib.import_module(plugin.stem)
-                        assert mod is not None
-
-                        plugin_content.append(
-                            [
-                                plugin.stem,
-                                inspect.getdoc(mod) or "",
-                                str(plugin) if is_headless else plugin.name,
-                            ],
-                        )
-
-            # ----------------------------------------------------------------------
-            def DecorateContent(index: int, content: list[str]) -> list[str]:  # noqa: ARG001
-                if not is_headless:
-                    content[-1] = TextwrapEx.CreateAnsiHyperLink(
-                        "file:///{}".format((cog_tools_dir / content[-1]).as_posix()),
-                        content[-1],
-                    )
-
-                return content
-
-            # ----------------------------------------------------------------------
-
-            output = textwrap.dedent(
-                """\
-                No cog code was found in '{}'.
-
-                To use this functionality, add the following cog code in VSCode's 'launch.json' file:
-
-                    // [[[cog import <functionality>]]]
-                    // [[[end]]]
-
-                where '<functionality>' can be one of:
-
-                {}
-                """,
-            ).format(
-                filename,
-                TextwrapEx.Indent(
-                    TextwrapEx.CreateTable(
-                        [
-                            "<functionality>",
-                            "Description",
-                            "Source Code",
-                        ],
-                        plugin_content,
-                        decorate_values_func=DecorateContent,
-                    ),
-                    4,
-                ),
-            )
-
         msg = textwrap.dedent(
             """\
             Cogging '{}' failed with the result code '{}'.

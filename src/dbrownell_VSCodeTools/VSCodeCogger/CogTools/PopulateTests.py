@@ -6,13 +6,14 @@ import textwrap
 from abc import ABC, abstractmethod
 from pathlib import Path
 
-import cog
-
 from dbrownell_Common.Types import override
 
 
 # ----------------------------------------------------------------------
 def Execute() -> None:  # noqa: D103
+    # Do not import at the module level, as the cog package is only available when this script is invoked within a cogging context.
+    import cog  # noqa: PLC0415
+
     parsers = [
         _PytestTestTypeParser(),
         _PythonUnittestTestTypeParser(),
@@ -254,5 +255,5 @@ class _PythonUnittestTestTypeParser(_TestTypeParser):
 # ----------------------------------------------------------------------
 # ----------------------------------------------------------------------
 # ----------------------------------------------------------------------
-if os.environ.get("__extracting_documentation__", None) is None:  # noqa: SIM112
+if not os.environ.get("__extracting_documentation__", ""):  # noqa: SIM112
     Execute()
