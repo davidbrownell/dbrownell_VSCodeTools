@@ -12,7 +12,7 @@ from dbrownell_Common.Types import override
 # ----------------------------------------------------------------------
 def Execute() -> None:  # noqa: D103
     # Do not import at the module level, as the cog package is only available when this script is invoked within a cogging context.
-    import cog  # noqa: PLC0415
+    import cog  # noqa: PLC0415 # ty: ignore[unresolved-import]
 
     parsers = [
         _PytestTestTypeParser(),
@@ -189,8 +189,6 @@ class _PytestTestTypeParser(_TestTypeParser):
 
                     // Insert custom program args here
                 ],
-
-                "cwd": "{dirname}",
             }},
             """,
         ).format(**template_args)
@@ -245,8 +243,6 @@ class _PythonUnittestTestTypeParser(_TestTypeParser):
                 "args": [
                     // Insert custom program args here
                 ],
-
-                "cwd": "{dirname}"
             }},
             """,
         ).format(**template_args)
