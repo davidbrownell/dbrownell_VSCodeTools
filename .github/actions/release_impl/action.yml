@@ -32,12 +32,12 @@ runs:
   using: composite
   steps:
     - name: Install uv and python
-      uses: astral-sh/setup-uv@v5
+      uses: astral-sh/setup-uv@v7
       with:
         enable-cache: false # No uv.lock or requirements.txt files, so nothing to cache on
 
     - name: Download Python Package
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: Python package
         path: dist
@@ -55,7 +55,7 @@ runs:
     # Commit code coverage
     - name: Create Code Coverage Badge
       if: ${{ inputs.coverage_badge_gist_token != '' && inputs.coverage_badge_gist_id != '' }}
-      uses: schneegans/dynamic-badges-action@v1.7.0
+      uses: schneegans/dynamic-badges-action@v1.8.0
       with:
         auth: ${{ inputs.coverage_badge_gist_token }}
         gistID: ${{ inputs.coverage_badge_gist_id }}
@@ -98,7 +98,7 @@ runs:
 
     - name: Upload Signatures
       if: ${{ inputs.minisign_private_key != '' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: Minisign signatures
         path: ./dist/*.minisig
